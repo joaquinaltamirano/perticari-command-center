@@ -1,0 +1,53 @@
+# Dependencias y salidas generadas
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+*.log
+.cache/
+.venv/
+__pycache__/
+
+# Secretos; ejemplos solo con placeholders
+.env
+.env.*
+!.env.example
+!.env.*.example
+.npmrc
+.yarnrc.yml
+*.pem
+*.key
+*.p12
+*.pfx
+/secrets/
+/credentials/
+
+# Datos privados y copias locales
+/data/private/
+/private/
+/exports/
+/imports/raw/
+/backups/
+*.dump
+*.sqlite
+*.sqlite3
+*.xlsx
+*.xls
+*.csv
+*.tsv
+# Solo fixtures sintéticos revisados en carpetas llamadas fixtures
+!**/fixtures/**/*.xlsx
+!**/fixtures/**/*.xls
+!**/fixtures/**/*.csv
+!**/fixtures/**/*.tsv
+
+# Entorno local
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
