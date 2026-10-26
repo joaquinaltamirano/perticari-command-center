@@ -27,5 +27,5 @@
 - No versionar secretos, `.env`, exportaciones comerciales crudas ni datos personales. No mostrar tokens ni PII en logs, capturas o prompts. Minimizar información enviada a la IA.
 - Validar entradas y autorización en backend; datos privados requieren autenticación con MFA en el entorno operativo.
 - Una tarea coherente por rama/PR. No sobrescribir trabajo ajeno ni fusionar o desplegar fuera del alcance autorizado.
-- Hoy este repo es documental: no hay runtime ni tests de aplicación. No afirmar que se ejecutaron. Al implementar, documentar versiones, comandos reales, migraciones y pruebas proporcionadas al riesgo.
+- El repositorio incluye una aplicación ejecutable desde V1. Documentar versiones, comandos reales, migraciones y pruebas proporcionadas al riesgo; distinguir validaciones locales de integraciones reales.
 - Reportar: requisitos cubiertos, archivos cambiados, decisiones, comandos y resultados, limitaciones, reversión y siguiente paso. Usar la plantilla de PR.

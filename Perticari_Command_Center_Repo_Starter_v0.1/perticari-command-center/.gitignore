@@ -51,3 +51,10 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+
+# Cloudflare, local-only inputs and delivery bundles
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.delivery/

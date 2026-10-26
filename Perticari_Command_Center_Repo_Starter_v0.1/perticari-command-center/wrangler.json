@@ -1,0 +1,23 @@
+{
+  "name": "perticari-notificaiones",
+  "main": "dist/worker.js",
+  "compatibility_date": "2026-07-30",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "NOTIFICATIONS_DB",
+      "database_name": "perticari-notificaciones",
+      "database_id": "269eadf5-7129-46e7-be16-3da84795a504",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  },
+  "observability": {
+    "enabled": false
+  },
+  "keep_vars": true
+}

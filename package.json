@@ -1,0 +1,10 @@
+{
+  "name":"perticari-workspace","private":true,"engines":{"node":">=24 <25"},
+  "scripts":{
+    "setup":"npm --prefix Perticari_Command_Center_Repo_Starter_v0.1/perticari-command-center ci",
+    "build":"npm --prefix Perticari_Command_Center_Repo_Starter_v0.1/perticari-command-center run build",
+    "test":"npm --prefix Perticari_Command_Center_Repo_Starter_v0.1/perticari-command-center test",
+    "dev":"npm --prefix Perticari_Command_Center_Repo_Starter_v0.1/perticari-command-center run dev",
+    "test:browser":"npm --prefix Perticari_Command_Center_Repo_Starter_v0.1/perticari-command-center run test:browser"
+  }
+}

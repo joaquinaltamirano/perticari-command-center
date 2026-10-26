@@ -1,0 +1,16 @@
+CREATE TABLE IF NOT EXISTS pcc_schema (version INTEGER PRIMARY KEY, applied INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS pcc_question_state (id TEXT PRIMARY KEY, created_at INTEGER, first_seen INTEGER NOT NULL, checked_at INTEGER NOT NULL, answered_at INTEGER, availability TEXT NOT NULL DEFAULT 'verified');
+CREATE TABLE IF NOT EXISTS pcc_orders (id TEXT PRIMARY KEY, status TEXT NOT NULL, currency TEXT, total_cents INTEGER, units INTEGER, created_at TEXT, items TEXT NOT NULL, source_at INTEGER NOT NULL, availability TEXT NOT NULL DEFAULT 'pending', stage TEXT NOT NULL DEFAULT 'new', note TEXT NOT NULL DEFAULT '', version INTEGER NOT NULL DEFAULT 1, confirmed_at INTEGER);
+CREATE TABLE IF NOT EXISTS pcc_knowledge (id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, intent TEXT NOT NULL, family TEXT NOT NULL DEFAULT '', source TEXT NOT NULL, status TEXT NOT NULL, validated_at INTEGER, expires INTEGER, version INTEGER NOT NULL, updated INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS pcc_suggestions (id TEXT PRIMARY KEY, question_id TEXT NOT NULL, engine TEXT NOT NULL, text TEXT NOT NULL, evidence TEXT NOT NULL, warnings TEXT NOT NULL, model TEXT, prompt_version TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS pcc_feedback (id TEXT PRIMARY KEY, suggestion_id TEXT NOT NULL UNIQUE, decision TEXT NOT NULL, corrected TEXT NOT NULL, reason TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS pcc_experiments (id TEXT PRIMARY KEY, title TEXT NOT NULL, hypothesis TEXT NOT NULL, metric TEXT NOT NULL, baseline TEXT NOT NULL, plan TEXT NOT NULL, result TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, version INTEGER NOT NULL, created INTEGER NOT NULL, updated INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS pcc_runtime (id TEXT PRIMARY KEY, value TEXT NOT NULL, updated INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS pcc_ai_usage (id TEXT PRIMARY KEY, day TEXT NOT NULL, status TEXT NOT NULL, model TEXT NOT NULL, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, reserved_microusd INTEGER NOT NULL, actual_microusd INTEGER, created INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS pcc_policy (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL, version INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS pcc_jobs_due ON pcc_jobs(status,due);
+CREATE INDEX IF NOT EXISTS pcc_questions_pending ON pcc_questions(status,source_at);
+CREATE INDEX IF NOT EXISTS pcc_question_checked ON pcc_question_state(checked_at);
+CREATE INDEX IF NOT EXISTS pcc_usage_day ON pcc_ai_usage(day);
+CREATE TABLE IF NOT EXISTS pcc_price_history (id TEXT PRIMARY KEY, sku TEXT NOT NULL, previous_cents INTEGER, public_cents INTEGER, currency TEXT, source TEXT NOT NULL, source_at INTEGER, observed_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS pcc_price_history_sku ON pcc_price_history(sku,observed_at);
