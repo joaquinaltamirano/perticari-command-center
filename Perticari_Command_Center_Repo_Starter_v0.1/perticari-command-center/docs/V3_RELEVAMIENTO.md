@@ -2,6 +2,8 @@
 
 Fecha: 26 de octubre de 2026. Estado: propuesta para la charla técnica; no constituye una entrega V3 ni habilita cambios comerciales.
 
+La devolución posterior se consolida en la [especificación V3 para aprobación](V3_ESPECIFICACION_PARA_APROBAR.md), con las tres etapas, familias seleccionadas, plantilla de descripción y políticas propuestas. Este documento conserva el diagnóstico de origen.
+
 Complementa [la especificación del producto](VERSION_OFICIAL_DEFINITIVA.md). Conserva el objetivo de ampliar la oferta y operar el canal con menos trabajo manual. Este relevamiento agrupa los nueve puntos del propietario, incorpora sus capturas de producción y distingue problemas observados de funciones propuestas. No se modificó ni desplegó código de aplicación durante este relevamiento.
 
 ## 1. Diagnóstico de la V2
