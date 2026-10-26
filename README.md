@@ -30,3 +30,5 @@ npm run dev
 `npm test` compila antes de ejecutar las pruebas. Para probar la interfaz en Chromium: `npm run test:browser`. El entorno local usa datos sintéticos; los archivos comerciales y las claves no se guardan en Git.
 
 La [especificación del producto](Perticari_Command_Center_Repo_Starter_v0.1/perticari-command-center/docs/VERSION_OFICIAL_DEFINITIVA.md) conserva los objetivos completos. `specs/` y el ZIP original documentan la base histórica.
+
+La [propuesta de V3](Perticari_Command_Center_Repo_Starter_v0.1/perticari-command-center/docs/V3_RELEVAMIENTO.md) reúne el diagnóstico de las pruebas del propietario, los requisitos agrupados y los criterios de aceptación. Es un documento para definir la próxima entrega; no indica que esas funciones ya estén implementadas.
