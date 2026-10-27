@@ -1,0 +1,1 @@
+{"name":"Perticari Command Center","short_name":"Perticari","id":"/app/","start_url":"/app/","scope":"/app/","display":"standalone","background_color":"#f5f7f1","theme_color":"#183f36","lang":"es-AR","icons":[{"src":"/app/assets/pcc-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}

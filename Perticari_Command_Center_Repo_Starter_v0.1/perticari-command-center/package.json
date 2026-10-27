@@ -1,6 +1,6 @@
 {
   "name": "perticari-command-center",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -14,6 +14,7 @@
     "test:browser": "npm run build && node test/browser.cjs"
   },
   "dependencies": {
+    "leaflet": "1.9.4",
     "lucide-react": "1.58.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",

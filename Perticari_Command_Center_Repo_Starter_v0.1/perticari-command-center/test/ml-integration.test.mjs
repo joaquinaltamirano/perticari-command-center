@@ -83,7 +83,8 @@ test('V2 ingreso invitado observado conserva cookie, lee precio público y no ap
  const mem=mock.get('https://www.memosoft.net.ar');mem.intercept({method:'GET',path:'/_pedidos/2513/0/index.php'}).reply(200,'<a id="usuario-invitado" href="invitado.php">Ingresar como invitado</a>',{headers:{'set-cookie':'session=fixture; Secure; HttpOnly'}});
  mem.intercept({method:'GET',path:'/_pedidos/2513/0/invitado.php',headers:{cookie:'session=fixture'}}).reply(302,'',{headers:{location:'carrito/catalogo.php?pagina=1'}});
  mem.intercept({method:'GET',path:'/_pedidos/2513/0/carrito/catalogo.php?pagina=1'}).reply(200,'<table class="catalogo"><tr class="catalogo"><td>SYNMEM</td><td>PERFIL ANGULO X 6 MTS</td><td>barra</td><td>$ 10.000,00</td></tr></table>').times(2);
- const j=await queue('memosoft');assert.equal(j.status,'done');const p=await db.prepare("SELECT * FROM pcc_products WHERE sku='SYNMEM'").first();assert.equal(p.base_cents,1000000);assert.equal(p.source,'memosoft');assert.equal(p.unit,'barra');const next=await db.prepare("SELECT * FROM pcc_jobs WHERE kind='memosoft' AND status='pending'").first();assert.ok(next);assert.ok(!next.payload.includes('session=fixture'));
+ const j=await queue('memosoft');assert.equal(j.status,'done');assert.equal(await db.prepare("SELECT * FROM pcc_products WHERE sku='SYNMEM'").first(),null);const next=await db.prepare("SELECT * FROM pcc_jobs WHERE kind='memosoft' AND status='pending'").first();assert.ok(next);assert.ok(!next.payload.includes('session=fixture'));
+ mem.intercept({method:'GET',path:'/_pedidos/2513/0/carrito/catalogo.php?pagina=2'}).reply(200,'<table class="catalogo"></table>');await ok('jobs/run',{});const p=await db.prepare("SELECT * FROM pcc_products WHERE sku='SYNMEM'").first();assert.equal(p.base_cents,1000000);assert.equal(p.source,'memosoft');assert.equal(p.unit,'barra');assert.equal((await db.prepare("SELECT status FROM pcc_memosoft_runs WHERE id=?").bind(j.id).first()).status,'complete');
 });
 test('V2 no sigue enlace invitado hacia otro dominio',async()=>{
  mock.get('https://www.memosoft.net.ar').intercept({method:'GET',path:'/_pedidos/2513/0/index.php'}).reply(200,'<a id="usuario-invitado" href="https://evil.test/invitado.php">Invitado</a>');const j=await queue('memosoft');assert.equal(j.status,'failed');assert.match(j.error,/fuera/);
@@ -102,4 +103,17 @@ test('V2 cron procesa atención y ventas sin dejar el catálogo permanentemente 
  assert.equal((await db.prepare("SELECT status FROM pcc_jobs WHERE kind='orders_recent'").first()).status,'done');
  await db.prepare("UPDATE pcc_runtime SET updated=0 WHERE id='scheduler'").run();remote('GET','/orders/search?seller=123&sort=date_desc&limit=20&offset=0',{results:[]});remote('GET','/users/123/items/search?limit=10&offset=0',{results:[]});await worker.scheduled({cron:'* * * * *',scheduledTime:Date.now()});
  assert.equal((await db.prepare("SELECT status FROM pcc_jobs WHERE kind='items'").first()).status,'done');assert.equal((await db.prepare("SELECT status FROM pcc_jobs WHERE kind='orders'").first()).status,'done');
+});
+
+test('V3 una pregunta recién listada también se verifica por ID y adopta la respuesta remota',async()=>{
+ remote('GET','/questions/search?seller_id=123&status=UNANSWERED&api_version=4&limit=20&offset=0',{questions:[{id:777,item_id:'MLA900',seller_id:123,text:'Pregunta sintética',status:'UNANSWERED'}]});
+ assert.equal((await queue('questions')).status,'done');remote('GET','/questions/777',{id:777,item_id:'MLA900',seller_id:123,status:'ANSWERED',answer:{text:'Contestada desde ML'}});await ok('jobs/run',{});
+ assert.equal((await db.prepare("SELECT status FROM pcc_questions WHERE id='777'").first()).status,'ANSWERED');const meta=await db.prepare("SELECT individual_at FROM pcc_question_verifications WHERE id='777'").first();assert.ok(meta.individual_at);
+});
+test('V3 historial importa respuestas sin afirmar cobertura de60 días ni generar reglas aprobadas',async()=>{
+ remote('GET','/questions/search?seller_id=123&status=ANSWERED&api_version=4&limit=20&offset=0',{questions:[{id:778,item_id:'MLA900',seller_id:123,text:'Pregunta histórica',status:'ANSWERED',answer:{text:'Respuesta de ejemplo'}}]});assert.equal((await queue('questions_history')).status,'done');assert.equal((await db.prepare("SELECT answer FROM pcc_questions WHERE id='778'").first()).answer,'Respuesta de ejemplo');
+});
+test('V3 enlace eventual y paginación real promueven solo al finalizar',async()=>{
+ const mem=mock.get('https://www.memosoft.net.ar');mem.intercept({method:'GET',path:'/_pedidos/2513/0/index.php'}).reply(200,'<a id="usuario-invitado" href="dist/php/login.php?eventual">Invitado</a>');mem.intercept({method:'GET',path:'/_pedidos/2513/0/dist/php/login.php?eventual'}).reply(200,'Catálogo');mem.intercept({method:'GET',path:'/_pedidos/2513/0/carrito/catalogo.php?pagina=1'}).reply(200,'<table><tr><th>Código</th><th>Producto</th><th>Precio</th><th>Cantidad</th></tr><tr class="catalogo"><td>SYNFINAL</td><td>PERFIL ANGULO X 6 MTS</td><td>$ 13,747.97</td><td>100</td></tr></table><a href="?pagina=1">1</a>');
+ const job=await queue('memosoft');assert.equal(job.status,'done',job.error);const p=await db.prepare("SELECT * FROM pcc_products WHERE sku='SYNFINAL'").first();assert.equal(p.base_cents,1374797);
 });

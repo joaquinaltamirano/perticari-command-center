@@ -1,0 +1,2 @@
+import {normalize} from './catalog.mjs';
+export function exactFaqMatch(rule,question,knowledge,now=Date.now()){return !!(rule.enabled&&knowledge&&knowledge.status==='validated'&&knowledge.version===rule.knowledge_version&&(!knowledge.expires||knowledge.expires>now)&&['general','delivery'].includes(knowledge.intent)&&!knowledge.family&&normalize(question.text)===normalize(rule.question)&&question.status==='UNANSWERED'&&question.created_at>=rule.created);}

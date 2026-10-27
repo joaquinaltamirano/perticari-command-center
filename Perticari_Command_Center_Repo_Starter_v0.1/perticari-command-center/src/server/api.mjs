@@ -1,4 +1,10 @@
 import { v2State,v2Route } from './v2.mjs';
+import {handleWorkflow,ensureWorkflowSchema,assertDraftActive,registerBatch} from './publication-workflow.mjs';
+import {handleIntegrations} from './v3-integrations.mjs';
+import {handleAutomation} from './v3-automation.mjs';
+import {faqRoutes} from './faq.mjs';
+import {researchPreview} from './research.mjs';
+import {descriptionFor,classify} from '../domain/families.mjs';
 import { attentionSummary,opportunities } from '../domain/intelligence.mjs';
 import { suggest } from './intelligence.mjs';
 import { identity,json,body,Problem,handleMfa } from './security.mjs';
@@ -8,17 +14,27 @@ import { previewImport,applyImport } from './imports.mjs';
 import { quality,draftFrom,draftIssues } from '../domain/catalog.mjs';
 import { simulatePrice } from '../domain/money.mjs';
 import { freightQuote } from '../domain/logistics.mjs';
-import { enqueue,runJobs,requestSync } from './jobs.mjs';
+import { enqueue,runJobs,requestSync,sourceState,ensureSources,storeQuestion } from './jobs.mjs';
 import { answerSuggestion,approveOperation,executeOperation,itemPayload,reconcileOperation } from './operations.mjs';
-import { ml } from './mercadolibre.mjs';
+import { ml,sellerId } from './mercadolibre.mjs';
 export async function api(request,env,ctx){
  const url=new URL(request.url),path=url.pathname;
  if(path==='/api/pcc/session'||path.startsWith('/api/pcc/mfa/'))return handleMfa(request,env,path);
  const {db}=await identity(request,env);
+ if(path==='/api/pcc/live'||path==='/api/pcc/bootstrap')await ensureSources(db);
+ if(path.startsWith('/api/pcc/v3/')){
+  if(!['GET','POST'].includes(request.method))throw new Problem('Método no permitido',405);
+  const input=request.method==='GET'?{}:await body(request,path.endsWith('/media/import')?8*1024*1024:5*1024*1024);
+  if(path==='/api/pcc/v3/questions/refresh'&&request.method==='POST'){if(!/^\d+$/.test(String(input.id||'')))throw new Problem('Pregunta inválida');const q=await ml(env,db,'/questions/'+input.id);if(String(q.seller_id)!==await sellerId(db))throw new Problem('Pregunta de otra cuenta',403);await storeQuestion(db,q);return json({status:q.status});}
+  if(path==='/api/pcc/v3/research/preview'&&request.method==='POST')return json(await researchPreview(db,input));
+  if(path==='/api/pcc/v3/sources'&&request.method==='GET')return json(await sourceState(db));
+  for(const handler of [handleWorkflow,handleIntegrations,handleAutomation,faqRoutes]){const result=await handler(env,db,path,request.method,input);if(result!==null)return json(result);}
+  throw new Problem('Recurso no encontrado',404);
+ }
  if(request.method==='GET'){
   if(path==='/api/pcc/live'){
    const [questions,jobs,sources,operations,orders,policy]=await Promise.all([
-    db.prepare("SELECT q.*,s.created_at,s.first_seen,s.checked_at,s.answered_at,s.availability FROM pcc_questions q LEFT JOIN pcc_question_state s ON s.id=q.id ORDER BY CASE q.status WHEN 'UNANSWERED' THEN 0 ELSE 1 END,COALESCE(s.created_at,s.first_seen,q.source_at) DESC LIMIT 1000").all(),
+    db.prepare("SELECT q.*,s.created_at,s.first_seen,s.checked_at,s.answered_at,s.availability,v.individual_at,v.search_at,v.last_error FROM pcc_questions q LEFT JOIN pcc_question_state s ON s.id=q.id LEFT JOIN pcc_question_verifications v ON v.id=q.id ORDER BY CASE q.status WHEN 'UNANSWERED' THEN 0 ELSE 1 END,COALESCE(s.created_at,s.first_seen,q.source_at) DESC LIMIT 1000").all(),
     db.prepare('SELECT id,kind,status,attempts,due,error,updated FROM pcc_jobs ORDER BY updated DESC LIMIT 100').all(),db.prepare('SELECT * FROM pcc_sources').all(),
     db.prepare('SELECT id,kind,target,status,result,created,updated FROM pcc_operations ORDER BY created DESC LIMIT 200').all(),db.prepare('SELECT * FROM pcc_orders ORDER BY source_at DESC LIMIT 200').all(),policies(db)]);
    return json({server_time:Date.now(),questions:questions.results,jobs:jobs.results,sources:sources.results,operations:operations.results,live_orders:orders.results.map(o=>({...o,items:JSON.parse(o.items)})),policy,attention:attentionSummary(questions.results,policy.response_target_minutes),writes:env.PCC_ENABLE_ML_WRITES==='true'&&env.PCC_ML_CONTRACT_VERIFIED==='true'&&!policy.read_only});
@@ -26,13 +42,13 @@ export async function api(request,env,ctx){
   if(path==='/api/pcc/bootstrap'){
    const [products,listings,drafts,questions,operations,jobs,sources,events,imports,config,connection,metrics]=await Promise.all([
     db.prepare('SELECT * FROM pcc_products ORDER BY family,name LIMIT 10000').all(),db.prepare('SELECT * FROM pcc_listings ORDER BY title LIMIT 10000').all(),
-    db.prepare('SELECT * FROM pcc_drafts ORDER BY updated DESC LIMIT 1000').all(),db.prepare("SELECT q.*,s.created_at,s.first_seen,s.checked_at,s.answered_at,s.availability FROM pcc_questions q LEFT JOIN pcc_question_state s ON s.id=q.id ORDER BY CASE q.status WHEN 'UNANSWERED' THEN 0 ELSE 1 END,COALESCE(s.created_at,s.first_seen,q.source_at) DESC LIMIT 1000").all(),
+    db.prepare('SELECT * FROM pcc_drafts ORDER BY updated DESC LIMIT 1000').all(),db.prepare("SELECT q.*,s.created_at,s.first_seen,s.checked_at,s.answered_at,s.availability,v.individual_at,v.search_at,v.last_error FROM pcc_questions q LEFT JOIN pcc_question_state s ON s.id=q.id LEFT JOIN pcc_question_verifications v ON v.id=q.id ORDER BY CASE q.status WHEN 'UNANSWERED' THEN 0 ELSE 1 END,COALESCE(s.created_at,s.first_seen,q.source_at) DESC LIMIT 1000").all(),
     db.prepare('SELECT id,kind,target,status,result,created,updated FROM pcc_operations ORDER BY created DESC LIMIT 200').all(),db.prepare('SELECT id,kind,status,attempts,due,error,updated FROM pcc_jobs ORDER BY updated DESC LIMIT 100').all(),
     db.prepare('SELECT * FROM pcc_sources').all(),db.prepare('SELECT id,action,target,result,created FROM pcc_audit ORDER BY created DESC LIMIT 100').all(),
     db.prepare('SELECT id,filename,status,summary,created,applied FROM pcc_imports ORDER BY created DESC LIMIT 20').all(),settings(db),oauthConnection(db),db.prepare('SELECT day,kind,value,source_at FROM pcc_metrics ORDER BY day DESC LIMIT 1000').all()]);
-   const v2=await v2State(db);
-   return json({version:'2.0.0',server_time:Date.now(),...v2,attention:attentionSummary(questions.results,v2.policy.response_target_minutes),opportunities:opportunities(products.results.map(productRow),listings.results.map(listingRow),drafts.results,questions.results),products:products.results.map(p=>{const product=productRow(p);return {...product,issues:quality(product),pricing:simulatePrice(product,config)};}),
-    listings:listings.results.map(listingRow),drafts:drafts.results.map(d=>({...d,payload:JSON.parse(d.payload),issues:draftIssues(JSON.parse(d.payload))})),
+   const v2=await v2State(db);await ensureWorkflowSchema(db);const [life,categories]=await Promise.all([db.prepare('SELECT id,lifecycle FROM pcc_workflow_drafts').all(),db.prepare('SELECT * FROM pcc_category_names').all()]);const activeIds=new Set(drafts.results.filter(d=>!life.results.some(l=>l.id===d.id&&l.lifecycle!=='active')).map(d=>d.id));const workflow={categories:categories.results.map(c=>({...c,path:JSON.parse(c.path)})),families:[]};
+   return json({version:'3.0.0',workflow:{categories:workflow.categories,families:workflow.families},server_time:Date.now(),...v2,attention:attentionSummary(questions.results,v2.policy.response_target_minutes),opportunities:opportunities(products.results.map(productRow),listings.results.map(listingRow),drafts.results,questions.results),products:products.results.map(p=>{const product=productRow(p);return {...product,issues:quality(product),pricing:simulatePrice(product,config)};}),
+    listings:listings.results.map(listingRow),drafts:drafts.results.filter(d=>activeIds.has(d.id)).map(d=>({...d,payload:JSON.parse(d.payload),issues:draftIssues(JSON.parse(d.payload))})),
     questions:questions.results,operations:operations.results,jobs:jobs.results,sources:sources.results,audit:events.results,imports:imports.results.map(i=>({...i,summary:JSON.parse(i.summary)})),settings:config,
     metrics:metrics.results.map(m=>({...m,value:JSON.parse(m.value)})),connection:connection?{seller_id:connection.seller_id,expires:connection.expires,refresh_status:connection.refresh_status}:null,
     capabilities:{writes:env.PCC_ENABLE_ML_WRITES==='true'&&env.PCC_ML_CONTRACT_VERIFIED==='true'&&!v2.policy.read_only,ai:env.OPENAI_API_KEY?'Proveedor configurado; sujeto a política y presupuesto':'Reglas y conocimiento validado; IA opcional sin configurar',memosoft:'conexión en validación; importación disponible'}});
@@ -59,7 +75,7 @@ export async function api(request,env,ctx){
  if(path==='/api/pcc/import/apply')return json(await applyImport(db,input.id));
  if(path==='/api/pcc/sync'){
   const kinds=input.source==='all'?['questions','orders_recent','items']:[input.source];
-  if(kinds.some(k=>!['items','questions','orders','orders_recent','memosoft'].includes(k)))throw new Problem('Fuente inválida');
+  if(kinds.some(k=>!['items','questions','questions_history','orders','orders_recent','memosoft'].includes(k)))throw new Problem('Fuente inválida');
   const jobs=[];for(const kind of kinds)jobs.push(await requestSync(db,kind));
   ctx.waitUntil(runJobs(env,db,1));return json({jobs});
  }
@@ -77,19 +93,25 @@ export async function api(request,env,ctx){
   await audit(db,'product_review',p.sku,{unit:input.unit,price_confirmed:!!input.price_confirmed});return json({ok:true});
  }
  if(path==='/api/pcc/drafts/create'){
+  await ensureWorkflowSchema(db);
   if(!Array.isArray(input.skus)||!input.skus.length||input.skus.length>30||input.skus.some(s=>typeof s!=='string'||!s||s.length>100))throw new Problem('Elegí de 1 a 30 productos por lote');
-  const config=await settings(db),created=[];
+  const config=await settings(db),created=[],templates=(await db.prepare('SELECT value FROM pcc_family_templates').all()).results.map(t=>JSON.parse(t.value));
   const products=(await db.prepare('SELECT * FROM pcc_products WHERE sku IN (SELECT value FROM json_each(?))').bind(JSON.stringify(input.skus)).all()).results;
-  const existingDrafts=(await db.prepare("SELECT id,sku FROM pcc_drafts WHERE status!='published' AND sku IN (SELECT value FROM json_each(?))").bind(JSON.stringify(input.skus)).all()).results;
+  const existingDrafts=(await db.prepare("SELECT id,sku FROM pcc_drafts WHERE status NOT IN ('published','discarded') AND id NOT IN (SELECT id FROM pcc_workflow_drafts WHERE lifecycle!='active') AND sku IN (SELECT value FROM json_each(?))").bind(JSON.stringify(input.skus)).all()).results;
   for(const sku of [...new Set(input.skus)]){
    const product=products.find(p=>p.sku===sku);if(!product)continue;
    const existing=existingDrafts.find(d=>d.sku===sku);if(existing){created.push(existing.id);continue;}
-   const payload=draftFrom(productRow(product),config),simulation=simulatePrice(productRow(product),config);payload.price_cents=simulation.proposed_cents;
+   const payload=draftFrom(productRow(product),config),simulation=simulatePrice(productRow(product),config);payload.price_cents=simulation.proposed_cents;payload.description=descriptionFor(productRow(product));
+   const classification=classify(product);
+   const template=templates.find(t=>t.family_id===classification.id&&(!t.pictures?.length||t.media_key===classification.media_key));
+   if(template){payload.description=template.description.replaceAll('{NOMBRE}',product.name).replaceAll('{SKU}',product.sku).replaceAll('{PRESENTACION}',product.unit==='barra'?`Barra de ${product.length} m`:product.unit||'Por confirmar');if(template.pictures?.length)payload.pictures=template.pictures;if(template.category_id)payload.category_id=template.category_id;}
+
    const id=crypto.randomUUID();await db.prepare('INSERT INTO pcc_drafts VALUES (?,?,1,?,?,NULL,?)').bind(id,sku,'draft',JSON.stringify(payload),Date.now()).run();created.push(id);
   }
-  await audit(db,'drafts_created','batch',{count:created.length});return json({created});
+  const batch_id=await registerBatch(db,created,typeof input.name==='string'?input.name:'Lote · '+new Date().toLocaleDateString('es-AR',{timeZone:'America/Argentina/Buenos_Aires'}));await audit(db,'drafts_created',batch_id||'batch',{count:created.length});return json({created,batch_id});
  }
  if(path==='/api/pcc/drafts/save'){
+  await assertDraftActive(db,input.id);
   const record=await db.prepare('SELECT * FROM pcc_drafts WHERE id=?').bind(input.id).first();if(!record)throw new Problem('Propuesta no encontrada',404);
   if(record.status==='published')throw new Problem('La propuesta ya fue publicada',409);
   const d=input.payload;
@@ -103,6 +125,7 @@ export async function api(request,env,ctx){
   await audit(db,'draft_saved',input.id,{version:input.version+1});return json({ok:true});
  }
  if(path==='/api/pcc/drafts/validate'){
+  await assertDraftActive(db,input.id);
   const draft=await db.prepare('SELECT * FROM pcc_drafts WHERE id=?').bind(input.id).first();if(!draft)throw new Problem('Propuesta no encontrada',404);
   const d=JSON.parse(draft.payload),issues=draftIssues(d);if(issues.length)throw new Problem(issues.join(' · '),409);
   if(env.PCC_ML_CONTRACT_VERIFIED!=='true')throw new Problem('Propuesta preparada. La validación remota se habilita al comprobar el contrato de la API para esta cuenta.',409);

@@ -1,3 +1,9 @@
+# Estado actual V3
+
+La entrega actual se describe en [ENTREGA_V3.md](ENTREGA_V3.md), con [estado por integración](ESTADO_V3.md) y [guía de prueba](PROBAR_V3.md). La especificación V3 aprobada define mudanza, mantenimiento/aprendizaje y operación principal. Las capacidades externas pendientes siguen abiertas; no se convierten en implementadas por haber construido la interfaz.
+
+## Antecedente V2
+
 # Estado respecto de la especificación definitiva
 
 ## Entregado en V2

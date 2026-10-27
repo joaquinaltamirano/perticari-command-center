@@ -1,3 +1,4 @@
+import {assertDraftActive} from './publication-workflow.mjs';
 import { draftIssues } from '../domain/catalog.mjs';
 import { simulatePrice } from '../domain/money.mjs';
 import { ml,ownItem,sellerId,mapItem } from './mercadolibre.mjs';
@@ -17,6 +18,7 @@ export async function approveOperation(db,env,input){
  if(input.confirm!==true)throw new Problem('Confirmá la aprobación de la acción');
  let payload;
  if(input.kind==='publish'){
+  await assertDraftActive(db,input.target);
   const draft=await db.prepare('SELECT * FROM pcc_drafts WHERE id=?').bind(input.target).first();
   if(!draft||draft.version!==input.version)throw new Problem('La propuesta cambió; volvé a revisarla',409);
   payload=JSON.parse(draft.payload);const issues=draftIssues(payload);if(issues.length)throw new Problem(issues.join(' · '),409);
@@ -87,6 +89,7 @@ export async function executeOperation(db,env,id){
    if(item.status!=='paused'){sent=true;await ml(env,db,'/items/'+operation.target,{method:'PUT',data:{status:'paused'},allowWrite:true});}
    const check=await ownItem(env,db,operation.target);if(check.status!=='paused')throw new Problem('La pausa necesita reconciliación',409);await listingStatement(db,mapItem(check)).run();
   }else{
+   await assertDraftActive(db,operation.target);
    const draft=await db.prepare('SELECT * FROM pcc_drafts WHERE id=?').bind(operation.target).first();
    if(!draft||draft.version!==payload.draft_version)throw new Problem('La propuesta cambió; aprobar de nuevo',409);
    await checkPublishPrice(db,payload);
